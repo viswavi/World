@@ -8,6 +8,8 @@
 #include "world/codec.h"
 
 #include <math.h>
+#include <csignal>
+#include <iostream>
 
 #include "world/constantnumbers.h"
 #include "world/fft.h"
@@ -120,14 +122,14 @@ static void IDCTForCodec(const double *mel_cepstrum, int max_dimension,
 static void CodeOneFrame(const double *log_spectral_envelope,
     const double *frequency_axis, int fft_size, const double *mel_axis,
     const fft_complex *weight, int max_dimension, int number_of_dimensions,
-    const ForwardRealFFT *forward_real_fft, double *coded_spectral_envelope) {
+    double *coded_spectral_envelope) {
   double *mel_spectrum = new double[max_dimension];
   interp1(frequency_axis, log_spectral_envelope, fft_size / 2 + 1,
       mel_axis, max_dimension, mel_spectrum);
 
-  // DCT
-  DCTForCodec(mel_spectrum, max_dimension, weight, forward_real_fft,
-      number_of_dimensions, coded_spectral_envelope);
+  for (int i = 0; i < number_of_dimensions; ++i)
+    //  coded_spectral_envelope[i] = mel_spectrum[max_dimension - number_of_dimensions + i];
+    coded_spectral_envelope[i] = mel_spectrum[i];
 
   delete[] mel_spectrum;
 }
@@ -278,18 +280,13 @@ void CodeSpectralEnvelope(const double * const *spectrogram, int f0_length,
       MyMinDouble(fs / 2.0, world::kCeilFrequency), fs, fft_size,
       mel_axis, frequency_axis, weight);
 
-  ForwardRealFFT forward_real_fft = { 0 };
-  InitializeForwardRealFFT(fft_size / 2, &forward_real_fft);
-
   for (int i = 0; i < f0_length; ++i) {
     for (int j = 0; j < fft_size / 2 + 1; ++j)
       tmp_spectrum[j] = log(spectrogram[i][j]);
     CodeOneFrame(tmp_spectrum, frequency_axis, fft_size, mel_axis, weight,
-        fft_size / 2, number_of_dimensions, &forward_real_fft,
-        coded_spectral_envelope[i]);
+        fft_size / 2, number_of_dimensions, coded_spectral_envelope[i]);
   }
 
-  DestroyForwardRealFFT(&forward_real_fft);
   delete[] weight;
   delete[] tmp_spectrum;
   delete[] frequency_axis;
